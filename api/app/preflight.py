@@ -17,6 +17,7 @@ from app import config
 
 APP_ROLE = "hub_app"
 MIN_SECRET_LENGTH = 20  # for database passwords
+MIN_OWNER_SECRET_LENGTH = 16  # managed hosts (Neon) issue random 16-character owner passwords
 MIN_SIGNING_SECRET_LENGTH = 32
 LOCAL_HOSTS = {"localhost", "127.0.0.1", "::1", "0.0.0.0"}
 FAIL, WARN = "FAIL", "WARN"
@@ -36,9 +37,9 @@ def settings_from_env():
     }
 
 
-def _weak(password):
+def _weak(password, min_length=MIN_SECRET_LENGTH):
     p = (password or "").lower()
-    return len(p) < MIN_SECRET_LENGTH or any(bad in p for bad in ("change-me", "changeme", "password")) or p in ("hub",)
+    return len(p) < min_length or any(bad in p for bad in ("change-me", "changeme", "password")) or p in ("hub",)
 
 
 def _is_public_https(url):
@@ -50,8 +51,8 @@ def check(s):
     """Findings for a settings dict (see settings_from_env), as (level, message) pairs."""
     out = []
     owner, app = urlsplit(s["owner_url"] or ""), urlsplit(s["app_url"] or "")
-    if _weak(owner.password):
-        out.append((FAIL, f"the database owner password (POSTGRES_PASSWORD) is weak or still a default; use {MIN_SECRET_LENGTH}+ random characters"))
+    if _weak(owner.password, MIN_OWNER_SECRET_LENGTH):
+        out.append((FAIL, f"the database owner password (POSTGRES_PASSWORD) is weak or still a default; use {MIN_OWNER_SECRET_LENGTH}+ random characters"))
     if _weak(s["app_password"]):
         out.append((FAIL, f"APP_DB_PASSWORD is weak or still a default; use {MIN_SECRET_LENGTH}+ random characters"))
     if app.username != APP_ROLE:
