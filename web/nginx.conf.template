@@ -1,0 +1,28 @@
+server {
+    listen 80;
+    server_name _;
+    root /usr/share/nginx/html;
+    index index.html;
+    server_tokens off;
+
+    # Same-origin everything, plus calls to the API. No inline script or style, nothing from a CDN,
+    # no framing. The data: image is the inline favicon in index.html.
+    # These are set once at server level on purpose: an add_header inside a location would drop them.
+    add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self' ${API_ORIGIN}; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; object-src 'none'" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header Referrer-Policy "no-referrer" always;
+    add_header Permissions-Policy "camera=(), microphone=(), geolocation=()" always;
+    add_header X-Robots-Tag "noindex, nofollow" always;
+
+    # Built files have hashed names, so they can be cached for a year.
+    location /assets/ {
+        expires 1y;
+        try_files $uri =404;
+    }
+
+    # Everything else is the single-page app; unknown paths still get index.html and React shows its own 404.
+    location / {
+        expires -1;  # always revalidate index.html so a new build is picked up
+        try_files $uri /index.html;
+    }
+}

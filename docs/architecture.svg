@@ -1,0 +1,94 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 560" width="960" height="560" role="img" aria-labelledby="t d" font-family="Archivo, 'Segoe UI', Helvetica, Arial, sans-serif">
+  <title id="t">Automation Hub architecture</title>
+  <desc id="d">A sender posts a signed webhook to the API, which stores it in Postgres and queues a job. A separate worker runs the job, retries failures and sends Telegram alerts. A React dashboard reads runs through the API. An uptime monitor watches the worker health endpoint.</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#101B33"/>
+    </marker>
+  </defs>
+  <rect width="960" height="560" fill="#F3F1EC"/>
+
+  <!-- left column -->
+  <g>
+    <rect x="30" y="40" width="170" height="80" rx="6" fill="#fff" stroke="#101B33" stroke-width="2"/>
+    <text x="115" y="72" text-anchor="middle" font-size="16" font-weight="700" fill="#101B33">Sender</text>
+    <text x="115" y="94" text-anchor="middle" font-size="12.5" fill="#4a5267">n8n, a shop, a script</text>
+
+    <rect x="30" y="140" width="170" height="80" rx="6" fill="#fff" stroke="#101B33" stroke-width="2"/>
+    <text x="115" y="172" text-anchor="middle" font-size="16" font-weight="700" fill="#101B33">Dashboard</text>
+    <text x="115" y="194" text-anchor="middle" font-size="12.5" fill="#4a5267">React, nginx, strict CSP</text>
+
+    <rect x="30" y="240" width="170" height="80" rx="6" fill="#fff" stroke="#101B33" stroke-width="2"/>
+    <text x="115" y="272" text-anchor="middle" font-size="16" font-weight="700" fill="#101B33">Uptime monitor</text>
+    <text x="115" y="294" text-anchor="middle" font-size="12.5" fill="#4a5267">outside the system</text>
+
+    <rect x="30" y="430" width="170" height="80" rx="6" fill="#fff" stroke="#101B33" stroke-width="2"/>
+    <text x="115" y="462" text-anchor="middle" font-size="16" font-weight="700" fill="#101B33">Telegram</text>
+    <text x="115" y="484" text-anchor="middle" font-size="12.5" fill="#4a5267">failure alerts to you</text>
+  </g>
+
+  <!-- API -->
+  <g>
+    <rect x="300" y="40" width="250" height="250" rx="6" fill="#101B33"/>
+    <rect x="300" y="40" width="250" height="8" rx="3" fill="#FFC21A"/>
+    <text x="320" y="78" font-size="18" font-weight="700" fill="#fff">API (FastAPI)</text>
+    <g font-size="13.5" fill="#E8EBF2">
+      <text x="320" y="110">Checks the signature and timestamp</text>
+      <text x="320" y="134">Drops duplicates (idempotency key)</text>
+      <text x="320" y="158">Rate limits by client address</text>
+      <text x="320" y="182">Saves the raw event, queues one job</text>
+      <text x="320" y="214">Login, roles, lockout, runs, retry</text>
+      <text x="320" y="238">/healthz and /healthz/worker</text>
+      <text x="320" y="270" fill="#FFC21A" font-weight="700">Runs as the limited hub_app role</text>
+    </g>
+  </g>
+
+  <!-- Worker -->
+  <g>
+    <rect x="300" y="340" width="250" height="180" rx="6" fill="#101B33"/>
+    <rect x="300" y="340" width="250" height="8" rx="3" fill="#FFC21A"/>
+    <text x="320" y="378" font-size="18" font-weight="700" fill="#fff">Worker (separate process)</text>
+    <g font-size="13.5" fill="#E8EBF2">
+      <text x="320" y="410">Claims jobs (SKIP LOCKED)</text>
+      <text x="320" y="434">Runs the handler, records each try</text>
+      <text x="320" y="458">Retries with backoff, then gives up</text>
+      <text x="320" y="482">Alerts, heartbeat, hourly cleanup</text>
+      <text x="320" y="506" fill="#FFC21A" font-weight="700">Any number of copies</text>
+    </g>
+  </g>
+
+  <!-- Postgres -->
+  <g>
+    <rect x="640" y="40" width="290" height="480" rx="6" fill="#fff" stroke="#101B33" stroke-width="2"/>
+    <text x="660" y="74" font-size="18" font-weight="700" fill="#101B33">Postgres 16</text>
+    <g font-size="13" fill="#101B33">
+      <rect x="660" y="90" width="250" height="44" rx="4" fill="#F3F1EC"/><text x="672" y="109" font-weight="700">webhook_events</text><text x="672" y="126" fill="#4a5267">raw payload, unique key per source</text>
+      <rect x="660" y="142" width="250" height="44" rx="4" fill="#F3F1EC"/><text x="672" y="161" font-weight="700">jobs</text><text x="672" y="178" fill="#4a5267">the queue: waiting, running, done, dead</text>
+      <rect x="660" y="194" width="250" height="44" rx="4" fill="#F3F1EC"/><text x="672" y="213" font-weight="700">job_attempts</text><text x="672" y="230" fill="#4a5267">every try, its error and duration</text>
+      <rect x="660" y="246" width="250" height="44" rx="4" fill="#FFC21A"/><text x="672" y="265" font-weight="700">audit_log</text><text x="672" y="282">append-only: no edits, no wipes</text>
+      <rect x="660" y="298" width="250" height="44" rx="4" fill="#F3F1EC"/><text x="672" y="317" font-weight="700">alert_deliveries</text><text x="672" y="334" fill="#4a5267">Telegram outbox, retried until sent</text>
+      <rect x="660" y="350" width="250" height="44" rx="4" fill="#F3F1EC"/><text x="672" y="369" font-weight="700">users, sessions, login_attempts</text><text x="672" y="386" fill="#4a5267">hashed passwords and tokens only</text>
+      <rect x="660" y="402" width="250" height="44" rx="4" fill="#F3F1EC"/><text x="672" y="421" font-weight="700">sources, worker_heartbeats</text><text x="672" y="438" fill="#4a5267">who may send, is a worker alive</text>
+    </g>
+    <text x="660" y="478" font-size="12.5" fill="#4a5267">Migrations run as the owner. The app</text>
+    <text x="660" y="496" font-size="12.5" fill="#4a5267">cannot drop, alter or truncate anything.</text>
+  </g>
+
+  <!-- arrows -->
+  <g stroke="#101B33" stroke-width="2" fill="none" marker-end="url(#arrow)">
+    <path d="M200 80 H298"/>
+    <path d="M200 180 H298" marker-start="url(#arrow)"/>
+    <path d="M200 280 H298"/>
+    <path d="M550 120 H638" marker-start="url(#arrow)"/>
+    <path d="M550 430 H638" marker-start="url(#arrow)"/>
+    <path d="M300 470 H202"/>
+  </g>
+  <g font-size="12" fill="#101B33" text-anchor="middle">
+    <text x="249" y="72">signed POST</text>
+    <text x="249" y="172">JSON + token</text>
+    <text x="249" y="272">/healthz/worker</text>
+    <text x="594" y="112">SQL</text>
+    <text x="594" y="422">SQL</text>
+    <text x="251" y="462">dead run, spike</text>
+  </g>
+</svg>

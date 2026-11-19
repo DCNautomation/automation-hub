@@ -1,0 +1,71 @@
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-hub}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-hub}
+      POSTGRES_DB: ${POSTGRES_DB:-hub}
+    ports:
+      - "127.0.0.1:5432:5432"  # loopback only: Postgres is not reachable from the network
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-hub} -d ${POSTGRES_DB:-hub}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # The API and worker run as the limited hub_app role (DATABASE_URL). Only the startup step below
+  # connects as the database owner (MIGRATE_DATABASE_URL) to migrate and to set the hub_app password.
+  api:
+    build:
+      context: .
+      dockerfile: api/Dockerfile
+    env_file: .env
+    environment:
+      MIGRATE_DATABASE_URL: postgresql://${POSTGRES_USER:-hub}:${POSTGRES_PASSWORD:-hub}@postgres:5432/${POSTGRES_DB:-hub}
+      DATABASE_URL: postgresql://hub_app:${APP_DB_PASSWORD:?set APP_DB_PASSWORD in .env}@postgres:5432/${POSTGRES_DB:-hub}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173,http://127.0.0.1:5173,http://localhost:8080,http://127.0.0.1:8080}
+    command: sh -c "python -m app.migrate && python -m app.dbroles && python -m app.preflight && uvicorn app.main:app --host 0.0.0.0 --port 8000"
+    ports:
+      - "127.0.0.1:8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=3)"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 5s
+
+  worker:
+    build:
+      context: .
+      dockerfile: api/Dockerfile
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://hub_app:${APP_DB_PASSWORD:?set APP_DB_PASSWORD in .env}@postgres:5432/${POSTGRES_DB:-hub}
+    command: python -m app.worker
+    depends_on:
+      postgres:
+        condition: service_healthy
+      api:
+        condition: service_healthy  # the API container has migrated and set the hub_app password by then
+
+  # The dashboard: static files behind nginx with a strict Content-Security-Policy.
+  web:
+    build:
+      context: web
+      args:
+        VITE_API_URL: ${PUBLIC_API_URL:-http://127.0.0.1:8000}
+    environment:
+      API_ORIGIN: ${PUBLIC_API_URL:-http://127.0.0.1:8000}
+    ports:
+      - "127.0.0.1:8080:80"
+    depends_on:
+      api:
+        condition: service_healthy
+
+volumes:
+  pgdata:

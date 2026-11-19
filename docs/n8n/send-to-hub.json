@@ -1,0 +1,75 @@
+{
+  "name": "Send an event to the Automation Hub",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "6b1c2a10-1f4e-4c55-9a53-0a1c9f0e0001",
+      "name": "Run it",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [0, 0],
+      "notes": "Swap this for whatever starts your real flow (a schedule, a webhook, another app)."
+    },
+    {
+      "parameters": {
+        "jsCode": "// Edit the three constants. In a real flow, build EVENT from the nodes before this one.\nconst SOURCE = 'demo';                              // the source name registered in the hub\nconst EVENT = { order: 4242, total: 120.5, currency: 'PHP' };\nconst KEY = `order-${EVENT.order}`;                 // must be the SAME every time this event is sent\n\nconst body = JSON.stringify(EVENT);\nconst timestamp = String(Math.floor(Date.now() / 1000));\n\n// The hub signs timestamp, key and body together, joined by newlines.\nreturn [{ json: { source: SOURCE, key: KEY, timestamp, body, toSign: `${timestamp}\\n${KEY}\\n${body}` } }];"
+      },
+      "id": "6b1c2a10-1f4e-4c55-9a53-0a1c9f0e0002",
+      "name": "Build the request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [220, 0],
+      "notes": "The key identifies the event, so sending it twice (a retry, a double click) never runs it twice."
+    },
+    {
+      "parameters": {
+        "action": "hmac",
+        "type": "SHA256",
+        "value": "={{ $json.toSign }}",
+        "dataPropertyName": "signature",
+        "secret": "REPLACE_WITH_THE_SOURCE_SIGNING_SECRET",
+        "encoding": "hex"
+      },
+      "id": "6b1c2a10-1f4e-4c55-9a53-0a1c9f0e0003",
+      "name": "Sign it",
+      "type": "n8n-nodes-base.crypto",
+      "typeVersion": 1,
+      "position": [440, 0],
+      "notes": "Paste the signing secret of the hub source here (the signing_secret column of the sources table)."
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=http://127.0.0.1:8000/ingest/{{ $json.source }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "X-Hub-Signature-256", "value": "=sha256={{ $json.signature }}" },
+            { "name": "X-Hub-Timestamp", "value": "={{ $json.timestamp }}" },
+            { "name": "X-Idempotency-Key", "value": "={{ $json.key }}" }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ $json.body }}",
+        "options": {}
+      },
+      "id": "6b1c2a10-1f4e-4c55-9a53-0a1c9f0e0004",
+      "name": "Send to the hub",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [660, 0],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "notes": "202 = accepted, 200 = the hub already had this event. Any other answer fails the run loudly. If n8n runs in Docker, replace 127.0.0.1 with host.docker.internal."
+    }
+  ],
+  "connections": {
+    "Run it": { "main": [[{ "node": "Build the request", "type": "main", "index": 0 }]] },
+    "Build the request": { "main": [[{ "node": "Sign it", "type": "main", "index": 0 }]] },
+    "Sign it": { "main": [[{ "node": "Send to the hub", "type": "main", "index": 0 }]] }
+  },
+  "settings": { "executionOrder": "v1" }
+}

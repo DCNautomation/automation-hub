@@ -1,0 +1,79 @@
+{
+  "name": "Random error to the Automation Hub (demo)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "hub-random-error",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "9a4c5d30-3b6a-4e77-9c75-2c3e1b2a0001",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [0, 0],
+      "webhookId": "9a4c5d30-3b6a-4e77-9c75-2c3e1b2a1001",
+      "notes": "Call this URL (any POST) and the flow picks a random error and reports it to the hub."
+    },
+    {
+      "parameters": {
+        "jsCode": "// SETTINGS: the two things to edit.\nconst HUB_URL = 'https://REPLACE-WITH-THE-HUB-ADDRESS';   // no trailing slash\nconst SOURCE = 'n8n-demo';                                // the source name registered in the hub\n\n// A pretend failure from one of the apps Diego's flows touch. Each one says which app,\n// what the code was, and what a person should do about it.\nconst ERRORS = [\n  { app: 'Shopify', code: '429', message: 'Rate limit exceeded while syncing orders', action: 'Wait 60 seconds, then rerun. If it repeats, cut the sync batch size to 20.' },\n  { app: 'Google Sheets', code: '403', message: 'Permission denied on the Orders sheet', action: 'Share the sheet with the n8n service account email, then rerun.' },\n  { app: 'ClickUp', code: '404', message: 'List not found when creating a task', action: 'The list was moved or deleted. Pick the new list id in the ClickUp node.' },\n  { app: 'Gmail', code: '401', message: 'OAuth token expired', action: 'Reconnect the Google credential in n8n, then rerun.' },\n  { app: 'Facebook Graph', code: '190', message: 'Access token has expired', action: 'Generate a new page token and update the Facebook credential.' },\n  { app: 'Instagram', code: '9007', message: 'Media is not ready to publish', action: 'Wait for the upload to finish processing, then rerun the publish step.' },\n  { app: 'Stripe', code: '401', message: 'Invalid API key provided', action: 'Replace the secret key in the Stripe credential. Do not paste it in chat.' },\n  { app: 'Supplier API', code: '503', message: 'Service unavailable', action: 'Nothing to fix on our side. The hub will retry. Contact the supplier if it ends as Gave up.' }\n];\nconst pick = ERRORS[Math.floor(Math.random() * ERRORS.length)];\n\nconst EVENT = {\n  flow: 'Order sync (example)',\n  app: pick.app,\n  code: pick.code,\n  action: pick.action,\n  error: `${pick.app} ${pick.code}: ${pick.message}. To do: ${pick.action}`,\n};\n// One key per event. A random part keeps two errors in the same millisecond apart.\nconst KEY = `err-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;\n\nconst body = JSON.stringify(EVENT);\nconst timestamp = String(Math.floor(Date.now() / 1000));\n\nreturn [{ json: { url: `${HUB_URL}/ingest/${SOURCE}`, key: KEY, timestamp, body, toSign: `${timestamp}\\n${KEY}\\n${body}` } }];"
+      },
+      "id": "9a4c5d30-3b6a-4e77-9c75-2c3e1b2a0002",
+      "name": "Make a random error",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [220, 0]
+    },
+    {
+      "parameters": {
+        "action": "hmac",
+        "type": "SHA256",
+        "value": "={{ $json.toSign }}",
+        "dataPropertyName": "signature",
+        "secret": "REPLACE_WITH_THE_SOURCE_SIGNING_SECRET",
+        "encoding": "hex"
+      },
+      "id": "9a4c5d30-3b6a-4e77-9c75-2c3e1b2a0003",
+      "name": "Sign it",
+      "type": "n8n-nodes-base.crypto",
+      "typeVersion": 1,
+      "position": [440, 0]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.url }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "X-Hub-Signature-256", "value": "=sha256={{ $json.signature }}" },
+            { "name": "X-Hub-Timestamp", "value": "={{ $json.timestamp }}" },
+            { "name": "X-Idempotency-Key", "value": "={{ $json.key }}" }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ $json.body }}",
+        "options": {}
+      },
+      "id": "9a4c5d30-3b6a-4e77-9c75-2c3e1b2a0004",
+      "name": "Report to the hub",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [660, 0],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "notes": "202 = accepted by the hub."
+    }
+  ],
+  "connections": {
+    "Webhook": { "main": [[{ "node": "Make a random error", "type": "main", "index": 0 }]] },
+    "Make a random error": { "main": [[{ "node": "Sign it", "type": "main", "index": 0 }]] },
+    "Sign it": { "main": [[{ "node": "Report to the hub", "type": "main", "index": 0 }]] }
+  },
+  "settings": { "executionOrder": "v1" }
+}
