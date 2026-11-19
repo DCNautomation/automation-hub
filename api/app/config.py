@@ -49,6 +49,7 @@ CORS_ORIGINS = [
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "")  # default chat for new rules
 TELEGRAM_API_BASE = os.environ.get("TELEGRAM_API_BASE", "https://api.telegram.org")
+SHEET_WEBHOOK_URL = os.environ.get("SHEET_WEBHOOK_URL", "")  # Google Apps Script web app that appends a row; blank = skip the Sheet step
 DASHBOARD_URL = os.environ.get("DASHBOARD_URL", "http://127.0.0.1:5173").rstrip("/")  # used for links in messages
 ALERT_INTERVAL_SECONDS = _int("ALERT_INTERVAL_SECONDS", 15)
 ALERT_MAX_ATTEMPTS = _int("ALERT_MAX_ATTEMPTS", 8)  # sends tried before a message is given up on
